@@ -75,3 +75,6 @@ STATIC_URL = '/static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 ASGI_APPLICATION = 'config.asgi.application'
+
+AUTH_USER_MODEL = 'account.User'
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
