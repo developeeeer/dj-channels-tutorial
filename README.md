@@ -142,3 +142,242 @@ python manage.py runserver
 Starting ASGI/Channels version 3.0.4 development server at http://127.0.0.1:8000/
 Quit the server with CONTROL-C.
 ```
+
+## チャットサーバーの実装
+
+room template を追加
+
+```terminal
+touch templates/chat/room.html
+
+# 以下を追加
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Chat Room</title>
+</head>
+<body>
+    <textarea id="chat-log" cols="100" rows="20"></textarea><br>
+    <input id="chat-message-input" type="text" size="100"><br>
+    <input id="chat-message-submit" type="button" value="Send">
+    {{ room_name|json_script:"room-name" }}
+    <script>
+        const roomName = JSON.parse(document.getElementById('room-name').textContent);
+
+        const chatSocket = new WebSocket(
+            'ws://'
+            + window.location.host
+            + '/ws/chat/'
+            + roomName
+            + '/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            document.querySelector('#chat-log').value += (data.message + '\n');
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.querySelector('#chat-message-input').focus();
+        document.querySelector('#chat-message-input').onkeyup = function(e) {
+            if (e.keyCode === 13) {  // enter, return
+                document.querySelector('#chat-message-submit').click();
+            }
+        };
+
+        document.querySelector('#chat-message-submit').onclick = function(e) {
+            const messageInputDom = document.querySelector('#chat-message-input');
+            const message = messageInputDom.value;
+            chatSocket.send(JSON.stringify({
+                'message': message
+            }));
+            messageInputDom.value = '';
+        };
+    </script>
+</body>
+</html>
+```
+
+room view を chat/views.py へ追加
+
+```views.py
+def room(request, room_name):
+    return render(request, 'chat/room.html', {
+        'room_name': room_name
+    })
+```
+
+room view のルートを chat/urls.py へ追加
+
+```urls.py
+urlpatterns = [
+    ...
+    path('<str:room_name>/', views.room, name='room'),
+]
+```
+
+Consumer を作成する
+
+Channels が WebSocket 接続を受け入れると、ルートルーティング構成を参照してコンシューマーを検索し、コンシューマーのさまざまな関数を呼び出して接続からのイベントを処理します。
+
+今回は /ws/chat/{ROOM_NAME}/ WebSocket で受信したメッセージを受け取り、同じ WebSocket にエコーバックするパスで WebSocket 接続を受け入れる基本的なコンシューマーを作成します。
+
+Memo
+
+In particular for large sites it will be possible to configure a production-grade HTTP server like nginx to route requests based on path to either (1) a production-grade WSGI server like Gunicorn+Django for ordinary HTTP requests or (2) a production-grade ASGI server like Daphne+Channels for WebSocket requests.
+
+```
+# consumers fileの作成
+touch chat/consumers.py
+
+# 以下を書き込む
+import json
+from asgiref.sync import async_to_sync
+from channels.generic.websocket import WebsocketConsumer
+
+class ChatConsumer(WebsocketConsumer):
+    def connect(self):
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        self.room_group_name = 'chat_%s' % self.room_name
+
+        # Join room group
+        async_to_sync(self.channel_layer.group_add)(
+            self.room_group_name,
+            self.channel_name
+        )
+
+        self.accept()
+
+    def disconnect(self, close_code):
+        # Leave room group
+        async_to_sync(self.channel_layer.group_discard)(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    # Receive message from WebSocket
+    def receive(self, text_data):
+        text_data_json = json.loads(text_data)
+        message = text_data_json['message']
+
+        # Send message to room group
+        async_to_sync(self.channel_layer.group_send)(
+            self.room_group_name,
+            {
+                'type': 'chat_message',
+                'message': message
+            }
+        )
+
+    # Receive message from room group
+    def chat_message(self, event):
+        message = event['message']
+
+        # Send message to WebSocket
+        self.send(text_data=json.dumps({
+            'message': message
+        }))
+```
+
+コンシューマーへのルートを持つチャットアプリのルーティング構成を作成
+
+```
+# routing.py fileの作成
+touch routing.py
+
+# 以下を書き込む
+from django.urls import re_path
+
+from . import consumers
+
+websocket_urlpatterns = [
+    re_path(r'ws/chat/(?P<room_name>\w+)/$', consumers.ChatConsumer.as_asgi()),
+]
+```
+
+chat.routing モジュールでルートルーティング構成を指定するため asgi.py を編集する  
+接続の HTTP パスを調べて、特定のコンシューマーにルーティングします。  
+※migrate していない場合は migrate しておく
+
+```
+python manage.py migrate
+```
+
+```asgi.py
+import os
+
+from channels.auth import AuthMiddlewareStack
+from channels.routing import ProtocolTypeRouter, URLRouter
+from django.core.asgi import get_asgi_application
+import chat.routing
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+application = ProtocolTypeRouter({
+  "http": get_asgi_application(),
+  "websocket": AuthMiddlewareStack(
+        URLRouter(
+            chat.routing.websocket_urlpatterns
+        )
+    ),
+})
+```
+
+チャネルレイヤを有効化にする  
+チャネル層は一種の通信システム。複数のコンシューマーインスタンスが相互に、および Django の他の部分と通信できるようにする。  
+方法は Redis チャネルレイヤを使用する or インメモリチャンネルレイヤを使用する方法がある
+
+1. Redis チャネルレイヤを使用
+   複数のチャネルレイヤを構成することが可能だが、ほとんどの場合は default チャネルレイヤのみの使用となるそう。(チュートリアル引用)
+
+```
+# Redisをバッキングストアとして使用
+docker run -p 6379:6379 -d redis:5
+
+# ChannelsがRedisとのインターフェース方法を認識できるように、channels_redisをインストールする
+pip install channels_redis
+
+# チャネルレイヤ構成をsettings.pyへ追加
+# hostがlocalhostになっているので本番環境には合わせる必要がある
+ASGI_APPLICATION = 'mysite.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+```
+
+2. インメモリチャンネルレイヤを使用
+   Channels には、メモリ内の ChannelsLayer もパッケージ化されている。  
+   このレイヤは、テストやローカル開発の目的で使用すること。  
+   ※本番環境ではクロスプロセスメッセージングが不可能
+
+```
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
+```
+
+Redis との通信確認(直接仮想サーバーを立ち上げて実行しても良い)
+
+```terminal
+$ python manage.py shell
+>>> import channels.layers
+>>> channel_layer = channels.layers.get_channel_layer()
+>>> from asgiref.sync import async_to_sync
+>>> async_to_sync(channel_layer.send)('test_channel', {'type': 'hello'})
+>>> async_to_sync(channel_layer.receive)('test_channel')
+{'type': 'hello'}
+```
+
+以上でチャットサーバー構築の完了  
+python manage.py runserver で起動して複数タブで/chat/{room}/を開いて相互通信できているか確認してください。
