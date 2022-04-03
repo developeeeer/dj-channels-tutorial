@@ -79,3 +79,18 @@ if READ_ENV_FILE:
 # env(環境変数名)で使用する
 SECRET_KEY = env('SECRET_KEY')
 ```
+
+## 2. Template の管理フォルダをルートに変更<hr>
+
+settings.py の TEMPLATES.DIRS を編集  
+application/templates の参照から project/templates を参照するように変更
+
+```settings.py
+TEMPLATES = [
+    {
+        ...
+        + 'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        ...
+    },
+]
+```
