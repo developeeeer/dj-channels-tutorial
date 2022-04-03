@@ -20,6 +20,9 @@ CHANNEL_LAYERS = {
     }
 }
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
+STATIC_URL = '/static/'
+
 INSTALLED_APPS += [
     'debug_toolbar'
 ]
