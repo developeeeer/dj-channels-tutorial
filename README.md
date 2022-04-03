@@ -1,11 +1,13 @@
 # Django-Channels で Chat アプリを作成
 
+### チュートリアルに沿って開発を進めますが一部ピックアップ・その他オリジナル部分を記事に残します
+
 - ASGI に触れてみたい。
 - 環境変数の扱いについての学習
 - ディレクトリ構成の模索
 - AWS EC2 でデプロイしてみる
 
-## 1. pipenv で仮想環境構築<hr>
+## pipenv で仮想環境構築<hr>
 
 プロジェクトディレクトリを作成
 
@@ -33,7 +35,7 @@ pip install Django==3.2.12
 exit
 ```
 
-## 2. django-environ で環境変数管理へ<hr>
+## django-environ で環境変数管理へ<hr>
 
 django-environ のインストール
 
@@ -80,7 +82,7 @@ if READ_ENV_FILE:
 SECRET_KEY = env('SECRET_KEY')
 ```
 
-## 2. Template の管理フォルダをルートに変更<hr>
+## Template の管理フォルダをルートに変更<hr>
 
 settings.py の TEMPLATES.DIRS を編集  
 application/templates の参照から project/templates を参照するように変更
@@ -93,4 +95,50 @@ TEMPLATES = [
         ...
     },
 ]
+```
+
+## Channels ライブラリの統合<hr>
+
+channels ライブラリのインストール
+
+```terminal
+pip install channels
+```
+
+settings.py の編集
+
+```terminal
+# INSTALLED_APPSに追加
+INSTALLED_APPS = [
+    'channels',
+    ...
+]
+
+# settings.pyの下部に追加
+ASGI_APPLICATION = "config.asgi.application"
+```
+
+config/asgi.py を以下に書き換えて DjangoASGI アプリケーションを Wrap
+
+```asgi.py
+import os
+
+from channels.routing import ProtocolTypeRouter
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mysite.settings')
+
+application = ProtocolTypeRouter({
+    "http": get_asgi_application(),
+    # Just HTTP for now. (We can add other protocols later.)
+})
+```
+
+これで ASGI サーバーの構築が完了
+
+```terminal
+python manage.py runserver
+
+Starting ASGI/Channels version 3.0.4 development server at http://127.0.0.1:8000/
+Quit the server with CONTROL-C.
 ```
