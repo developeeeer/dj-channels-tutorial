@@ -2,11 +2,6 @@
 
 ### チュートリアルに沿って開発を進めますが一部ピックアップ・その他オリジナル部分を記事に残します
 
-- ASGI に触れてみたい。
-- 環境変数の扱いについての学習
-- ディレクトリ構成の模索
-- AWS EC2 でデプロイしてみる
-
 ## pipenv で仮想環境構築<hr>
 
 プロジェクトディレクトリを作成
@@ -143,7 +138,7 @@ Starting ASGI/Channels version 3.0.4 development server at http://127.0.0.1:8000
 Quit the server with CONTROL-C.
 ```
 
-## チャットサーバーの実装
+## チャットサーバーの実装<hr>
 
 room template を追加
 
@@ -381,3 +376,60 @@ $ python manage.py shell
 
 以上でチャットサーバー構築の完了  
 python manage.py runserver で起動して複数タブで/chat/{room}/を開いて相互通信できているか確認してください。
+
+## チャットサーバーの非同期化<hr>
+
+ChatConsumer を非同期になるように変更
+
+```
+# 以下に置き換え
+import json
+from channels.generic.websocket import AsyncWebsocketConsumer
+
+class ChatConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        self.room_group_name = f'chat_{self.room_name}'
+
+        # Join room group
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        # Leave room group
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    # Receive message from WebSocket
+    async def receive(self, text_data):
+        text_data_json = json.loads(text_data)
+        message = text_data_json['message']
+
+        # Send message to room group
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'chat_message',
+                'message': message
+            }
+        )
+
+    # Receive message from room group
+    async def chat_message(self, event):
+        message = event['message']
+
+        # Send message to WebSocket
+        await self.send(text_data=json.dumps({
+            'message': message
+        }))
+```
+
+## 以上で非同期チャットサーバーの構築が完了
+
+## CUSTOM.md で色々カスタマイズしてみる...

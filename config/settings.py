@@ -16,6 +16,10 @@ import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+DRIVERS_DIR_NAME = 'drivers'
+CHROME_DRIVER_NAME = 'chromedriver'
+CHROME_DRIVER_PATH = os.path.join(BASE_DIR, DRIVERS_DIR_NAME, CHROME_DRIVER_NAME)
+
 env = environ.Env()
 READ_ENV_FILE = env.bool('DJANGO_READ_ENV_FILE', default=0)
 
