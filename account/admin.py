@@ -24,6 +24,8 @@ class UserAdmin(UserAdmin):
             'is_staff',
             'is_active',
             'is_superuser',
+            'groups',
+            'user_permissions',
         )}),
         (_('registration information'), {
          'fields': ('created_at', 'last_login',)}),
