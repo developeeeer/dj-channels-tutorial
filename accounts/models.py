@@ -5,15 +5,14 @@ from django.contrib.auth.models import BaseUserManager, AbstractBaseUser
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None):
         if not email:
             raise ValueError('メールアドレスは必須項目です')
-
         user = self.model(
             email=self.normalize_email(email),
         )
-
         user.set_password(password)
         user.save(using=self._db)
         return user
@@ -29,6 +28,7 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
+
 class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(_("id"), default=uuid4, primary_key=True)
     email = models.EmailField(
@@ -36,6 +36,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_length=255,
         unique=True,
     )
+    username = models.CharField(_("username"), default="Anonymous", max_length=16)
     is_staff = models.BooleanField(_("staff"), default=False)
     is_active = models.BooleanField(_("active"), default=False)
     is_superuser = models.BooleanField(_("superuser"), default=False)
@@ -54,3 +55,4 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+

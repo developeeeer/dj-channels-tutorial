@@ -19,11 +19,13 @@ class UserCreationForm(UserCreationForm):
 
 class UserAdmin(UserAdmin):
     fieldsets = (
-        (_('email and password'), {'fields': ('email', 'password')}),
+        (_('username & email & password'), {'fields': ('username', 'email', 'password')}),
         (_('authority'), {'fields': (
             'is_staff',
             'is_active',
             'is_superuser',
+            'groups',
+            'user_permissions',
         )}),
         (_('registration information'), {
          'fields': ('created_at', 'last_login',)}),
@@ -39,6 +41,7 @@ class UserAdmin(UserAdmin):
     list_display = (
         'id',
         'email',
+        'username',
         'is_active',
         'is_staff',
         'created_at',
@@ -46,7 +49,7 @@ class UserAdmin(UserAdmin):
         'last_login',
     )
     list_filter = ('is_staff', 'is_active',)
-    search_fields = ('id', 'email')
+    search_fields = ('id', 'email', 'username')
     ordering = ('-created_at', )
 
 

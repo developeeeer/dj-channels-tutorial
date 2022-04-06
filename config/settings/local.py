@@ -1,5 +1,11 @@
 import os
 from .base import *
+import environ
+
+env = environ.Env()
+
+env_file = os.path.join(BASE_DIR, '.env')
+env.read_env(env_file)
 
 SECRET_KEY = os.environ.get("SECRET_KEY")
 
