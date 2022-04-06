@@ -36,6 +36,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_length=255,
         unique=True,
     )
+    username = models.CharField(_("username"), default="Anonymous", max_length=16)
     is_staff = models.BooleanField(_("staff"), default=False)
     is_active = models.BooleanField(_("active"), default=False)
     is_superuser = models.BooleanField(_("superuser"), default=False)

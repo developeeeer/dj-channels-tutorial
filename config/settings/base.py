@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 INSTALLED_APPS = [
     'channels',
     'chat',
-    'account',
+    'accounts',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -76,5 +76,5 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 ASGI_APPLICATION = 'config.asgi.application'
 
-AUTH_USER_MODEL = 'account.User'
+AUTH_USER_MODEL = 'accounts.User'
 ACCOUNT_AUTHENTICATION_METHOD = 'email'
